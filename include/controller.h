@@ -15,10 +15,12 @@
 #define RED                     1
 
 /* Web Server */
-#define HTTP_REQUEST_PROC_LOAD  5
+#define HTTP_REQUEST_PROC_LOAD  2000
 
 /* PDA */
-#define RS232_CHAR_PROC_LOAD    5
+#define RS232_CHAR_PROC_LOAD    1500
+
+#define CTRL_ALG_LOAD           5000
 
 /* Standard includes. */
 #include <stdlib.h>
@@ -33,6 +35,8 @@
 #include "task.h"
 #include "queue.h"
 #include "timers.h"
+#include "semphr.h"
+
 
 #include "kb.h"
 //#include <string.h>
@@ -40,10 +44,11 @@
 /* Plant Control Task */
 void vPlantControlTask( void *pvParameters );
 void vSensorControlTask( void *pvParameters );
+void PerformControl(float data1, float data2);
 
 /* Web Server Task */
 void vWebServerTask( void *pvParameters );
-void ProcessHTTPData( int Data, int Data2 );
+void ProcessHTTPData( float Data );
 /* RS232 Task */
 void vRS232Task( void *pvParameters );
 void ProcessSerialCharacters( float Data);
@@ -51,12 +56,12 @@ void ProcessSerialCharacters( float Data);
 void vKeyScanTask( void *pvParmeters );
 
 /* LED Task */
-void vLEDTask( void *pvParmeters );
+void vLEDTask( void *pvParameters );
 int SystemIsHealthy( void );
 int FlashLED( int led, int status );
 /* CPU usage */
 void vApplicationIdleHook( void );
-
+void vCPUMonitorTask( void * pvParameters );
 void initMenu( void );
 
 
