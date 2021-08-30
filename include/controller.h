@@ -62,7 +62,11 @@ int FlashLED( int led, int status );
 /* CPU usage */
 void vApplicationIdleHook( void );
 void vCPUMonitorTask( void * pvParameters );
-void initMenu( void );
 
+void initMenu( void );
+void initCreateTimers( void );
+
+/* Timers callback */
+void vTimerCallback(TimerHandle_t xTimer);
 
 #endif /* CONTROLLER_H */

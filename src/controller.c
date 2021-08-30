@@ -7,6 +7,14 @@ QueueHandle_t xRS232Queue;
 
 SemaphoreHandle_t xBinarySemaphore = NULL;
 
+TimerHandle_t tmrPlantTask;
+TimerHandle_t tmrSensorTask;
+TimerHandle_t tmrKbTask;
+TimerHandle_t tmrLedTask;
+TimerHandle_t tmrPDATask;
+TimerHandle_t tmrWebTask;
+TimerHandle_t tmrCpuTask;
+
 TickType_t xIdleTimeCount = 0;
 TickType_t xLastTickTimeCount = 0;
 
@@ -33,6 +41,8 @@ void vPlantControlTask(void *pvParameters)
     xEthernetQueue = xQueueCreate(1, sizeof(float));
     xRS232Queue = xQueueCreate(1, sizeof(float));
 
+    xBinarySemaphore = xSemaphoreCreateBinary();
+
     if (xSensorQueue1 == NULL || xSensorQueue2)
     {
         /* Queue was not created and must not be used. */
@@ -41,6 +51,8 @@ void vPlantControlTask(void *pvParameters)
 
     // A
     xLastWakeTime = xTaskGetTickCount();
+
+    xTimerStart(tmrPlantTask, 0);
 
     // B
     for (;;)
@@ -60,8 +72,15 @@ void vPlantControlTask(void *pvParameters)
                 xQueueOverwrite(xRS232Queue, &receivedData1);
                 xQueueOverwrite(xEthernetQueue, &receivedData2);
                 xQueueOverwrite(xRS232Queue, &receivedData2);
-                if(flagPerformance == 1)
+                xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
+                if(flagPerformance == 1){
+                    xSemaphoreGive(xBinarySemaphore);
                     PerformControl(receivedData1, receivedData2);
+                }
+                else {
+                    xSemaphoreGive(xBinarySemaphore);
+                }
+                xTimerReset(tmrPlantTask, 0);
             }
         }
     }
@@ -70,6 +89,8 @@ void vPlantControlTask(void *pvParameters)
 void vSensorControlTask( void *pvParameters ){
     float data1 = 0.0;
     float data2 = 0.0;
+
+    xTimerStart(tmrSensorTask, 0);
 
     for(;;)
     {
@@ -82,6 +103,7 @@ void vSensorControlTask( void *pvParameters ){
 
         xQueueOverwrite(xSensorQueue1, &data1);
         xQueueOverwrite(xSensorQueue2, &data2);
+        xTimerReset(tmrSensorTask, 0);
     }
     
 }
@@ -103,6 +125,8 @@ void vKeyScanTask(void *pvParmeters)
     xLastWakeTime = xTaskGetTickCount();
 
     xBinarySemaphore = xSemaphoreCreateBinary();
+
+    // xTimerStart(tmrKbTask, 0);
 
     for (;;)
     {
@@ -136,16 +160,16 @@ void vKeyScanTask(void *pvParmeters)
             //     break;
             case '3':
                 // systemHealth = 0;
+                xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
                 if(flagPerformance != 0)
                     flagPerformance = 0;
-                    xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
                     printf("\nFlag performance set to 0\n");
                     xSemaphoreGive(xBinarySemaphore);
                 break;
             case '4':
+                xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
                 if(flagPerformance != 1)
                     flagPerformance = 1;
-                    xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
                     printf("\nFlag performance set to 1\n");
                     xSemaphoreGive(xBinarySemaphore);
                 // systemHealth = 1;
@@ -157,6 +181,7 @@ void vKeyScanTask(void *pvParmeters)
                 break;
             }
         }
+        // xTimerReset(tmrKbTask, 0);
     }
 }
 
@@ -168,7 +193,11 @@ void vLEDTask(void *pvParameters)
     int led, curr;
 
     xBinarySemaphore = xSemaphoreCreateBinary();
+
+    // xTimerStart(tmrLedTask, 0);
+
     for (;;){
+        
         vTaskDelayUntil(&xLastWakeTime, DELAY_PERIOD);
         if (SystemIsHealthy() == 1){
             led = GREEN;
@@ -179,11 +208,13 @@ void vLEDTask(void *pvParameters)
         if(led != curr){
             curr = led;
             if(curr == GREEN){
+                // xTimerReset(tmrLedTask, 0);
                 xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
                 printf("\n[led] -> color ==> GREEN\n");
                 xSemaphoreGive(xBinarySemaphore);
             }
             else {
+                // xTimerReset(tmrLedTask, 0);
                 xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
                 printf("\n[led] -> color ==> RED\n");
                 xSemaphoreGive(xBinarySemaphore);
@@ -277,4 +308,15 @@ void vApplicationIdleHook( void ){
     unsigned long int curr = xTaskGetTickCount();
     while(xTaskGetTickCount() == curr);
     xIdleTimeCount = xIdleTimeCount + 1;
+}
+
+void vTimerCallback(TimerHandle_t xTimer){
+    printf("\nDeadline miss!\n");
+}
+
+void initCreateTimers( void ){
+    tmrPlantTask = xTimerCreate("tmr plant task", pdMS_TO_TICKS(CYCLE_RATE_MS+5), pdTRUE, (void*) 0, vTimerCallback);
+    tmrSensorTask = xTimerCreate("tmr sensores", pdMS_TO_TICKS(5), pdTRUE, (void*) 1, vTimerCallback);
+    tmrKbTask = xTimerCreate("tmr keyboard task", pdMS_TO_TICKS(DELAY_PERIOD_KP), pdTRUE, (void*) 2, vTimerCallback);
+    tmrLedTask = xTimerCreate("tmr led task", pdMS_TO_TICKS(DELAY_PERIOD+5), pdTRUE, (void*) 3, vTimerCallback);
 }

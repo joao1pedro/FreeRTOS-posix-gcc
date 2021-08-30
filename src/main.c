@@ -1,9 +1,10 @@
 #include "controller.h"
 
 
-
 int main(void)
 {
+    initCreateTimers();
+    
     xTaskCreate(&vKeyScanTask, "keyboard scan", 1024, NULL, 1, NULL);
     xTaskCreate(&vPlantControlTask, "plant control", 1024, NULL, 2, NULL);
     xTaskCreate(&vSensorControlTask, "sensor control", 1024, NULL, 3, NULL);
