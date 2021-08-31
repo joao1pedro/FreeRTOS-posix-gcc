@@ -94,11 +94,11 @@ void vSensorControlTask( void *pvParameters ){
     for(;;)
     {
         vTaskDelay(pdMS_TO_TICKS(1));
-        data1 = 0.005*(rand()%10000);
+        data1 = 0.005*(rand()%100);
 
 
         vTaskDelay(pdMS_TO_TICKS(1));
-        data2 = 0.001*(rand()%15000);
+        data2 = 0.005*(rand()%150);
 
         xQueueOverwrite(xSensorQueue1, &data1);
         xQueueOverwrite(xSensorQueue2, &data2);
@@ -324,7 +324,7 @@ void vCPUMonitorTask( void * pvParameters ){
         xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
         xLastTickTimeCount = xCurrentTickTimeCount;
         xIdleTimeCount = 0;
-        if(cpuLoad > 85){
+        if(cpuLoad > 0.85){
             systemHealth = 0;
         } else{
             systemHealth = 1;

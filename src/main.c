@@ -4,7 +4,7 @@
 int main(void)
 {
     // initMenu();
-    printf("\nPressione a tela '5' para visualizar o menu de opções.\n");
+    printf("\nPressione a tecla '5' para visualizar o menu de opções.\n");
     initCreateTimers();
 
     xTaskCreate(&vKeyScanTask, "keyboard scan", 1024, NULL, 1, NULL);
