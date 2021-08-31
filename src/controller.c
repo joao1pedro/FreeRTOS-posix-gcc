@@ -190,6 +190,7 @@ void vLEDTask(void *pvParameters)
     TickType_t xLastWakeTime;
 
     xLastWakeTime = xTaskGetTickCount();
+
     int led, curr;
 
     xBinarySemaphore = xSemaphoreCreateBinary();
@@ -235,18 +236,26 @@ int SystemIsHealthy( void )
 /* RS232 Task */
 void vRS232Task(void *pvParameters)
 {
-    int data;
+    float data;
+
+    TickType_t xLastWakeTime;
+
+    xLastWakeTime = xTaskGetTickCount();
 
     xBinarySemaphore = xSemaphoreCreateBinary();
 
+    xTimerStart(tmrPDATask, 0);
+
     for (;;)
     {
+        vTaskDelayUntil(&xLastWakeTime, RS232_CHAR_PROC_LOAD);
         // Block until data arrives.  xRS232Queue is filled by the
         // RS232 interrupt service routine.  
         if (xQueuePeek(xRS232Queue, &data, 0) == pdTRUE)
         {
             xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
             ProcessSerialCharacters(data);
+            xTimerReset(tmrPDATask, 0);
             xSemaphoreGive(xBinarySemaphore);
         }
     }
@@ -264,12 +273,17 @@ void ProcessSerialCharacters(float Data)
 /* Web Server Task */
 void vWebServerTask(void *pvParameters)
 {
+    TickType_t xLastWakeTime;
+
+    xLastWakeTime = xTaskGetTickCount();
+
     float data;
 
     xBinarySemaphore = xSemaphoreCreateBinary();
 
     for (;;)
     {
+        vTaskDelayUntil(&xLastWakeTime, HTTP_REQUEST_PROC_LOAD);
         // Block until data arrives.  xEthernetQueue is filled by the
         // Ethernet interrupt service routine.
         if (xQueuePeek(xEthernetQueue, &data,0) == pdTRUE)
@@ -318,5 +332,7 @@ void initCreateTimers( void ){
     tmrPlantTask = xTimerCreate("tmr plant task", pdMS_TO_TICKS(CYCLE_RATE_MS+5), pdTRUE, (void*) 0, vTimerCallback);
     tmrSensorTask = xTimerCreate("tmr sensores", pdMS_TO_TICKS(5), pdTRUE, (void*) 1, vTimerCallback);
     tmrKbTask = xTimerCreate("tmr keyboard task", pdMS_TO_TICKS(DELAY_PERIOD_KP), pdTRUE, (void*) 2, vTimerCallback);
-    tmrLedTask = xTimerCreate("tmr led task", pdMS_TO_TICKS(DELAY_PERIOD+5), pdTRUE, (void*) 3, vTimerCallback);
+    // tmrLedTask = xTimerCreate("tmr led task", pdMS_TO_TICKS(DELAY_PERIOD+5), pdTRUE, (void*) 3, vTimerCallback);
+    tmrPDATask = xTimerCreate("tmr pda task", pdMS_TO_TICKS(RS232_CHAR_PROC_LOAD+5), pdTRUE, (void*) 4, vTimerCallback);
+    tmrWebTask = xTimerCreate("tmr web task", pdMS_TO_TICKS(HTTP_REQUEST_PROC_LOAD+5), pdTRUE, (void*) 5, vTimerCallback);
 }
