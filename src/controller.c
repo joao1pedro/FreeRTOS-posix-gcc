@@ -4,6 +4,7 @@ QueueHandle_t xSensorQueue1;
 QueueHandle_t xSensorQueue2;
 QueueHandle_t xEthernetQueue;
 QueueHandle_t xRS232Queue;
+QueueHandle_t xCpuLoadQueue;
 
 SemaphoreHandle_t xBinarySemaphore = NULL;
 
@@ -14,6 +15,7 @@ TimerHandle_t tmrLedTask;
 TimerHandle_t tmrPDATask;
 TimerHandle_t tmrWebTask;
 TimerHandle_t tmrCpuTask;
+TimerHandle_t tmrLCDTask;
 
 TickType_t xIdleTimeCount = 0;
 TickType_t xLastTickTimeCount = 0;
@@ -46,7 +48,7 @@ void vPlantControlTask(void *pvParameters)
     if (xSensorQueue1 == NULL || xSensorQueue2)
     {
         /* Queue was not created and must not be used. */
-        printf("Queue create error\n");
+        // printf("Queue create error\n");
     }
 
     // A
@@ -76,9 +78,6 @@ void vPlantControlTask(void *pvParameters)
                 if(flagPerformance == 1){
                     xSemaphoreGive(xBinarySemaphore);
                     PerformControl(receivedData1, receivedData2);
-                }
-                else {
-                    xSemaphoreGive(xBinarySemaphore);
                 }
                 xTimerReset(tmrPlantTask, 0);
             }
@@ -112,7 +111,7 @@ void PerformControl(float data1, float data2){
     float result = 0;
     for (int i = 0; i < CTRL_ALG_LOAD; i++)
     {
-        result = data1*data2*(data1+data2);
+        result = pow(data1,data2);
     }
     
 }
@@ -152,18 +151,12 @@ void vKeyScanTask(void *pvParmeters)
             case '2':
                 flagWeb = 1;
                 break;
-            // case '3':
-            //     systemHealth = 0;
-            //     break;
-            // case '4':
-            //     systemHealth = 1;
-            //     break;
             case '3':
-                // systemHealth = 0;
                 xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
                 if(flagPerformance != 0)
                     flagPerformance = 0;
                     printf("\nFlag performance set to 0\n");
+                    // systemHealth = 0;
                     xSemaphoreGive(xBinarySemaphore);
                 break;
             case '4':
@@ -171,8 +164,13 @@ void vKeyScanTask(void *pvParmeters)
                 if(flagPerformance != 1)
                     flagPerformance = 1;
                     printf("\nFlag performance set to 1\n");
+                    // systemHealth = 1;
                     xSemaphoreGive(xBinarySemaphore);
-                // systemHealth = 1;
+                break;
+            case '5':
+                xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
+                initMenu();
+                xSemaphoreGive(xBinarySemaphore);
                 break;
             default:
                 xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
@@ -195,7 +193,7 @@ void vLEDTask(void *pvParameters)
 
     xBinarySemaphore = xSemaphoreCreateBinary();
 
-    // xTimerStart(tmrLedTask, 0);
+    xTimerStart(tmrLedTask, 0);
 
     for (;;){
         
@@ -209,17 +207,20 @@ void vLEDTask(void *pvParameters)
         if(led != curr){
             curr = led;
             if(curr == GREEN){
-                // xTimerReset(tmrLedTask, 0);
                 xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
                 printf("\n[led] -> color ==> GREEN\n");
+                xTimerReset(tmrLedTask, 0);
                 xSemaphoreGive(xBinarySemaphore);
             }
             else {
-                // xTimerReset(tmrLedTask, 0);
                 xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
                 printf("\n[led] -> color ==> RED\n");
+                xTimerReset(tmrLedTask, 0);
                 xSemaphoreGive(xBinarySemaphore);
             }
+        }
+        else {
+            xTimerReset(tmrLedTask, 0);
         }
     }
 }
@@ -306,15 +307,30 @@ void ProcessHTTPData(float Data)
 
 void vCPUMonitorTask( void * pvParameters ){
     TickType_t xCurrentTickTimeCount = xTaskGetTickCount(); //pega tempo corrente
-    TickType_t xTickTimesElapsed = xCurrentTickTimeCount - xLastTickTimeCount; //tempo corrente menos ultimo tempo de ocorrencia da cpu
+    TickType_t xTickTimesElapsed = xCurrentTickTimeCount - xIdleTimeCount; //tempo corrente menos ultimo tempo de ocorrencia da cpu
+
+    xCpuLoadQueue = xQueueCreate(1, sizeof(float));
+
+    xBinarySemaphore = xSemaphoreCreateBinary();
+
+    xTimerStart(tmrCpuTask, 0);
 
     for(;;){
-        vTaskDelayUntil(&xCurrentTickTimeCount, pdMS_TO_TICKS(5000));
-        cpuLoad = ((float) xTickTimesElapsed - (float) (xIdleTimeCount) / (float) (xTickTimesElapsed));
-        printf("[CPUMonitorTask] - CPU load --> %f \n", cpuLoad);
+        vTaskDelayUntil(&xCurrentTickTimeCount, pdMS_TO_TICKS(10));
+        cpuLoad = (((float) xTickTimesElapsed) - ((float) xIdleTimeCount))/ ((float) xTickTimesElapsed );
+        // printf("[CPUMonitorTask] - CPU load --> %.2f \n", cpuLoad);
+        xQueueOverwrite(xCpuLoadQueue, &cpuLoad);
 
+        xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
         xLastTickTimeCount = xCurrentTickTimeCount;
         xIdleTimeCount = 0;
+        if(cpuLoad > 85){
+            systemHealth = 0;
+        } else{
+            systemHealth = 1;
+        }
+        xTimerReset(tmrCpuTask, 0);
+        xSemaphoreGive(xBinarySemaphore);
     }
 }
 
@@ -328,11 +344,46 @@ void vTimerCallback(TimerHandle_t xTimer){
     printf("\nDeadline miss!\n");
 }
 
+void vLCDTask( void * pvParameters ){
+    TickType_t xCurrentTickTimeCount = xTaskGetTickCount(); 
+    float cpu;
+    xBinarySemaphore = xSemaphoreCreateBinary();
+    
+    xCpuLoadQueue = xQueueCreate(1, sizeof(float));
+
+    xTimerStart(tmrLCDTask, 0);
+
+    for(;;){
+        vTaskDelayUntil(&xCurrentTickTimeCount, pdMS_TO_TICKS(5000));
+        if (xQueuePeek(xRS232Queue, &cpu, 0) == pdTRUE){
+            xSemaphoreTake(xBinarySemaphore,pdMS_TO_TICKS(1));
+            printf("[LCD Task] - CPU load --> %.2f \n", cpu);
+            xTimerReset(tmrLCDTask, 0);
+            xSemaphoreGive(xBinarySemaphore);
+        }
+    }
+}
+
 void initCreateTimers( void ){
     tmrPlantTask = xTimerCreate("tmr plant task", pdMS_TO_TICKS(CYCLE_RATE_MS+5), pdTRUE, (void*) 0, vTimerCallback);
     tmrSensorTask = xTimerCreate("tmr sensores", pdMS_TO_TICKS(5), pdTRUE, (void*) 1, vTimerCallback);
     tmrKbTask = xTimerCreate("tmr keyboard task", pdMS_TO_TICKS(DELAY_PERIOD_KP), pdTRUE, (void*) 2, vTimerCallback);
-    // tmrLedTask = xTimerCreate("tmr led task", pdMS_TO_TICKS(DELAY_PERIOD+5), pdTRUE, (void*) 3, vTimerCallback);
+    tmrLedTask = xTimerCreate("tmr led task", pdMS_TO_TICKS(DELAY_PERIOD+5), pdTRUE, (void*) 3, vTimerCallback);
     tmrPDATask = xTimerCreate("tmr pda task", pdMS_TO_TICKS(RS232_CHAR_PROC_LOAD+5), pdTRUE, (void*) 4, vTimerCallback);
     tmrWebTask = xTimerCreate("tmr web task", pdMS_TO_TICKS(HTTP_REQUEST_PROC_LOAD+5), pdTRUE, (void*) 5, vTimerCallback);
+    tmrCpuTask = xTimerCreate("tmr cpu task", pdMS_TO_TICKS(15), pdTRUE, (void*) 6, vTimerCallback);
+    tmrLCDTask = xTimerCreate("tmr lcd task", pdMS_TO_TICKS(5000+2), pdTRUE, (void*) 7, vTimerCallback);
+}
+
+void initMenu(void)
+{
+    printf("Hello from Freertos\r\n");
+    printf("\n-------------------------------------\n");
+    printf("\n Menu de opções do sistema\r\n");
+    printf("\n opc = 1 --> Acesso a PDA interface\r\n");
+    printf("\n opc = 2 --> Acesso a Web interface\r\n");
+    printf("\n opc = 3 --> Flag performance set to 0\r\n");
+    printf("\n opc = 4 --> Flag performance set to 1\r\n");
+    printf("\n opc = 5 --> Visualizar menu de opções do sistema\r\n");
+    printf("\n-------------------------------------\n");
 }

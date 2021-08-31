@@ -20,7 +20,7 @@
 /* PDA */
 #define RS232_CHAR_PROC_LOAD    1500
 
-#define CTRL_ALG_LOAD           5000
+#define CTRL_ALG_LOAD           10000
 
 /* Standard includes. */
 #include <stdlib.h>
@@ -29,6 +29,7 @@
 #include <stdarg.h>
 #include <time.h>
 #include <stdbool.h>
+#include <math.h>
 
 /* FreeRTOS includes. */
 #include "FreeRTOS.h"
@@ -62,6 +63,7 @@ int FlashLED( int led, int status );
 /* CPU usage */
 void vApplicationIdleHook( void );
 void vCPUMonitorTask( void * pvParameters );
+void vLCDTask( void * pvParameters );
 
 void initMenu( void );
 void initCreateTimers( void );

@@ -28,7 +28,7 @@ SOURCE_FILES += ${FREERTOS_DIR}/Source/portable/ThirdParty/GCC/Posix/port.c
 SOURCE_FILES += ${FREERTOS_DIR}/Source/portable/ThirdParty/GCC/Posix/utils/wait_for_event.c
 
 CFLAGS := -ggdb3 -O0
-LDFLAGS := -ggdb3 -O0 -pthread
+LDFLAGS := -ggdb3 -O0 -pthread -lm
 
 OBJ_FILES = $(SOURCE_FILES:%.c=$(BUILD_DIR)/%.o)
 
